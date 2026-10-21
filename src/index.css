@@ -1,0 +1,115 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap");
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "DM Sans", "Noto Sans Thai", sans-serif;
+  --color-ink: #211a36;
+  --color-purple-50: #f5f1ff;
+  --color-purple-100: #eee7ff;
+  --color-purple-200: #ded0ff;
+  --color-purple-300: #c5aaff;
+  --color-purple-400: #a77cff;
+  --color-purple-500: #8753ee;
+  --color-purple-600: #7139d4;
+  --color-purple-700: #5d2cb1;
+  --color-purple-800: #49248a;
+  --shadow-card: 0 12px 36px rgba(53, 34, 94, 0.07);
+  --shadow-glow: 0 12px 32px rgba(113, 57, 212, 0.24);
+}
+
+:root {
+  font-family: "DM Sans", "Noto Sans Thai", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+  background: #faf9ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.text-gradient {
+  background: linear-gradient(110deg, #7139d4 8%, #a252df 55%, #d15eae 100%);
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.poster-background {
+  background:
+    radial-gradient(ellipse at 30% 25%, rgba(197, 170, 255, 0.6), transparent 48%),
+    linear-gradient(135deg, #eee7ff, #f9e9f4);
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg, #f0ebf9 25%, #faf8ff 50%, #f0ebf9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.ambient-orb {
+  animation: drift 16s ease-in-out infinite alternate;
+}
+
+.mobile-drawer-panel {
+  animation: slide-in 220ms ease-out both;
+}
+
+.mobile-drawer-backdrop {
+  animation: fade-in 180ms ease-out both;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes drift {
+  to {
+    transform: translate3d(28px, 18px, 0);
+  }
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

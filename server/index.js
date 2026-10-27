@@ -206,6 +206,7 @@ app.get("/api/shows/preview", async (request, response) => {
       language: show.language,
       status: show.status,
       type: show.type,
+      summary: show.summary,
     })));
   } catch (error) {
     console.error("TVmaze series previews failed:", error);

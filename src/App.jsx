@@ -19,6 +19,9 @@ import {
   Tv,
   Trash2,
   X,
+  Heart,
+  Bookmark,
+  UserRound,
 } from "lucide-react";
 import { authRequest, clearAuthTokens, getAccessToken, localApiFetch, saveAuthResult } from "./auth";
 
@@ -39,13 +42,14 @@ const popularGenres = [
 ];
 const searchHistoryKey = "series-finder-search-history";
 const maxSearchHistory = 8;
+const memberStorageKey = (email, list) => `series-finder-${list}-${(email || "member").toLowerCase()}`;
 const noGenreCategory = "__series_finder_no_genre__";
 const translations = {
   th: {
-    documentTitle: "Series Finder — ค้นพบซีรีส์เรื่องโปรด",
+    documentTitle: "MOONFLIX — ค้นพบซีรีส์เรื่องโปรด",
     toggleLanguage: "เปลี่ยนภาษาเป็นอังกฤษ", toggleTheme: "เปลี่ยนธีม",
     searchLabel: "ค้นหาซีรีส์", searchPlaceholder: "ค้นหาชื่อซีรีส์ เช่น Batman, Friends...",
-    search: "ค้นหา", searching: "กำลังค้นหา", searchNow: "เริ่มค้นหา", home: "Series Finder หน้าหลัก",
+    search: "ค้นหา", searching: "กำลังค้นหา", searchNow: "เริ่มค้นหา", home: "MOONFLIX หน้าหลัก",
     backToCatalog: "กลับไปยังซีรีส์ทั้งหมด",
     searchHistory: "ประวัติการค้นหา",
     clearHistory: "ล้างประวัติ", predictions: "คำแนะนำจาก TVmaze",
@@ -78,10 +82,10 @@ const translations = {
     posterAlt: (name) => `โปสเตอร์ ${name}`,
   },
   en: {
-    documentTitle: "Series Finder — Discover your next favorite series",
+    documentTitle: "MOONFLIX — Discover your next favorite series",
     toggleLanguage: "Switch language to Thai", toggleTheme: "Toggle theme",
     searchLabel: "Search series", searchPlaceholder: "Search series, e.g. Batman, Friends...",
-    search: "Search", searching: "Searching", searchNow: "Search series", home: "Series Finder home",
+    search: "Search", searching: "Searching", searchNow: "Search series", home: "MOONFLIX home",
     backToCatalog: "Back to all series",
     searchHistory: "Recent searches",
     clearHistory: "Clear history", predictions: "Suggestions from TVmaze",
@@ -218,7 +222,7 @@ function ShowCard({ show, onSelect, language, text }) {
   );
 }
 
-function ShowDialog({ show, onClose, language, text, isMember }) {
+function ShowDialog({ show, onClose, language, text, isMember, isFavorite, isSaved, onToggleFavorite, onToggleSaved }) {
   const closeButton = useRef(null);
   const image = show.image?.original || show.image?.medium;
 
@@ -283,6 +287,16 @@ function ShowDialog({ show, onClose, language, text, isMember }) {
           </div>
         </div>
         <div className="p-5 sm:p-7">
+          {isMember && (
+            <div className="mb-5 flex flex-wrap gap-2">
+              <button type="button" onClick={() => onToggleFavorite(show)} className={`inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold transition ${isFavorite ? "bg-rose-100 text-rose-700" : "bg-purple-50 text-purple-700 hover:bg-purple-100 dark:bg-slate-800 dark:text-purple-200"}`}>
+                <Heart size={16} className={isFavorite ? "fill-current" : ""} /> {isFavorite ? (language === "th" ? "นำออกจากรายการโปรด" : "Remove favorite") : (language === "th" ? "เพิ่มในรายการโปรด" : "Add to favorites")}
+              </button>
+              <button type="button" onClick={() => onToggleSaved(show)} className={`inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold transition ${isSaved ? "bg-amber-100 text-amber-800" : "bg-purple-50 text-purple-700 hover:bg-purple-100 dark:bg-slate-800 dark:text-purple-200"}`}>
+                <Bookmark size={16} className={isSaved ? "fill-current" : ""} /> {isSaved ? (language === "th" ? "นำออกจากดูภายหลัง" : "Remove from watch later") : (language === "th" ? "บันทึกไว้ดูภายหลัง" : "Save for later")}
+              </button>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
               [text.year, getYear(show, language)],
@@ -348,6 +362,10 @@ function App() {
   const [notice, setNotice] = useState("");
   const [accountNotice, setAccountNotice] = useState("");
   const [searchHistory, setSearchHistory] = useState(readSearchHistory);
+  const [showProfile, setShowProfile] = useState(false);
+  const [profileTab, setProfileTab] = useState("favorites");
+  const [favorites, setFavorites] = useState([]);
+  const [watchLater, setWatchLater] = useState([]);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [predictions, setPredictions] = useState([]);
   const [isPredicting, setIsPredicting] = useState(false);
@@ -358,6 +376,42 @@ function App() {
   const predictionListRef = useRef(null);
   const catalogSnapshotRef = useRef(null);
   const text = translations[language];
+  const memberKey = authenticatedUser?.email || authenticatedUser?.id || "";
+
+  useEffect(() => {
+    if (!memberKey) {
+      setFavorites([]);
+      setWatchLater([]);
+      setShowProfile(false);
+      return;
+    }
+    try {
+      setSearchHistory(JSON.parse(localStorage.getItem(memberStorageKey(memberKey, "search-history")) || "[]").filter((item) => typeof item === "string"));
+      const storedFavorites = JSON.parse(localStorage.getItem(memberStorageKey(memberKey, "favorites")) || "[]");
+      const storedWatchLater = JSON.parse(localStorage.getItem(memberStorageKey(memberKey, "watch-later")) || "[]");
+      setFavorites(Array.isArray(storedFavorites) ? storedFavorites : []);
+      setWatchLater(Array.isArray(storedWatchLater) ? storedWatchLater : []);
+    } catch (error) {
+      console.error("Could not load member profile data:", error);
+      setFavorites([]);
+      setWatchLater([]);
+    }
+  }, [memberKey]);
+
+  useEffect(() => {
+    if (!memberKey) return;
+    try {
+      localStorage.setItem(memberStorageKey(memberKey, "favorites"), JSON.stringify(favorites));
+      localStorage.setItem(memberStorageKey(memberKey, "watch-later"), JSON.stringify(watchLater));
+      localStorage.setItem(memberStorageKey(memberKey, "search-history"), JSON.stringify(searchHistory));
+    } catch (error) { console.error("Could not save member profile data:", error); }
+  }, [memberKey, favorites, watchLater, searchHistory]);
+
+  function toggleShowInList(show, list, setList) {
+    setList((current) => current.some((item) => String(item.id) === String(show.id))
+      ? current.filter((item) => String(item.id) !== String(show.id))
+      : [show, ...current]);
+  }
   const registrationText = language === "th"
     ? { join: "สมัครสมาชิก", title: "สร้างบัญชีของคุณ", subtitle: "กรอกข้อมูลเพื่อเริ่มค้นหาซีรีส์ที่ใช่", personal: "ข้อมูลสมาชิก", name: "ชื่อ", surname: "นามสกุล", gender: "เพศ", male: "ชาย", female: "หญิง", other: "อื่นๆ", specify: "โปรดระบุเพศ", birthday: "วันเกิด", day: "วัน", month: "เดือน", year: "ปี", age: "อายุ", password: "ตั้งรหัสผ่าน", confirmPassword: "ยืนยันรหัสผ่าน", passwordHint: "รหัสผ่านต้องมีอย่างน้อย 8 ตัว และมีอักขระพิเศษอย่างน้อย 1 ตัว เช่น ! @ # $ %", passwordTooShort: "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร", mismatch: "รหัสผ่านทั้งสองช่องไม่ตรงกัน กรุณาตรวจสอบอีกครั้ง", specialRequired: "รหัสผ่านต้องมีอักขระพิเศษอย่างน้อย 1 ตัว", next: "ถัดไป", back: "ย้อนกลับ", choose: "เลือกแนวที่คุณชอบ", chooseHint: "เลือก 5 แนวจาก 15 แนว เพื่อปรับคำแนะนำซีรีส์ให้ตรงใจ", selected: "เลือกแล้ว", finish: "สมัครสมาชิก", success: "สมัครสมาชิกเรียบร้อยแล้ว!", saved: "ข้อมูลสมาชิกและแนวซีรีส์ที่ชอบบันทึกไว้ในอุปกรณ์นี้แล้ว", return: "กลับไปค้นหาซีรีส์", required: "กรุณากรอกข้อมูลให้ครบและถูกต้อง", needFive: "กรุณาเลือกแนวที่ชอบให้ครบ 5 แนว", select: "เลือก" }
     : { join: "Sign up", title: "Create your account", subtitle: "Tell us a little about yourself to get started.", personal: "Your details", name: "First name", surname: "Last name", gender: "Gender", male: "Male", female: "Female", other: "Other", specify: "Please specify", birthday: "Date of birth", day: "Day", month: "Month", year: "Year", age: "Age", password: "Create password", confirmPassword: "Confirm password", passwordHint: "Use at least 8 characters and include one special character, such as ! @ # $ %", passwordTooShort: "Password must be at least 8 characters.", mismatch: "Passwords do not match. Please enter them again.", specialRequired: "Password must contain at least one special character.", next: "Continue", back: "Back", choose: "Choose your favorite genres", chooseHint: "Pick 5 of 15 genres to personalize your series recommendations.", selected: "Selected", finish: "Create account", success: "You’re all signed up!", saved: "Your details and favorite genres have been saved on this device.", return: "Back to series finder", required: "Please complete all required fields with valid information.", needFive: "Please choose exactly 5 favorite genres.", select: "Choose" };
@@ -532,12 +586,13 @@ function App() {
   }, [theme]);
 
   useEffect(() => {
+    if (memberKey) return;
     try {
       localStorage.setItem(searchHistoryKey, JSON.stringify(searchHistory));
     } catch (error) {
       console.error("Could not save search history:", error);
     }
-  }, [searchHistory]);
+  }, [searchHistory, memberKey]);
 
   useEffect(() => {
     const trimmedQuery = query.trim();
@@ -662,6 +717,22 @@ function App() {
     catalogSnapshotRef.current = null;
   }
 
+  function goHome() {
+    setShowProfile(false);
+    if (catalogSnapshotRef.current) {
+      returnToCatalog();
+    } else {
+      setSearchedFor("");
+      setQuery("");
+      setIsBrowsingGenre(false);
+      setSelectedGenre("");
+      setSelectedPlatform("");
+      setError("");
+      if (shows.length) setStatus("success");
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   const matchingHistory = searchHistory
     .filter(
       (item) =>
@@ -751,17 +822,17 @@ function App() {
         <div className="ambient-orb absolute -left-40 top-[34rem] h-80 w-80 rounded-full bg-fuchsia-100/60 blur-3xl dark:hidden" />
       </div>
       <header className="sticky top-0 z-40 grid grid-cols-[1fr_auto_auto] items-center gap-x-3 gap-y-3 border-b border-purple-100/70 bg-[#faf9ff]/95 px-4 py-3 backdrop-blur-xl sm:px-7 lg:px-10 xl:px-16 dark:border-slate-800 dark:bg-slate-950/95 md:grid-cols-[1fr_minmax(18rem,36rem)_1fr]">
-          <a href="#" className="flex items-center gap-2.5" aria-label={text.home}>
+          <a href="#" onClick={(event) => { event.preventDefault(); goHome(); }} className="flex items-center gap-2.5" aria-label={text.home}>
             <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-purple-600 text-white shadow-glow">
               <Clapperboard size={21} />
             </span>
             <span className="text-lg font-extrabold tracking-tight text-ink dark:text-slate-100">
-              series<span className="text-purple-600">finder</span>
+              <span className="font-black tracking-[0.08em]">MOON<span className="text-purple-600">FLIX</span></span>
             </span>
           </a>
           <form
             onSubmit={searchShows}
-            className={`${!loginOpen && registrationStep === null && isMobileSearchOpen ? "flex" : "hidden"} search-shell relative col-span-3 row-start-2 min-w-0 flex-wrap items-center gap-2 rounded-2xl border ${notice ? "border-rose-400 dark:border-rose-500" : "border-purple-100 dark:border-slate-700"} bg-white p-1.5 shadow-sm sm:rounded-full sm:pl-4 md:col-span-1 md:col-start-2 md:row-start-1 ${!loginOpen && registrationStep === null ? "md:flex" : "hidden"} dark:bg-slate-900`}
+            className={`${!loginOpen && registrationStep === null && !showProfile && isMobileSearchOpen ? "flex" : "hidden"} search-shell relative col-span-3 row-start-2 min-w-0 flex-wrap items-center gap-2 rounded-2xl border ${notice ? "border-rose-400 dark:border-rose-500" : "border-purple-100 dark:border-slate-700"} bg-white p-1.5 shadow-sm sm:rounded-full sm:pl-4 md:col-span-1 md:col-start-2 md:row-start-1 ${!loginOpen && registrationStep === null && !showProfile ? "md:flex" : "hidden"} dark:bg-slate-900`}
           >
             <label className="flex min-w-0 flex-1 items-center gap-2 px-2">
               <Search size={18} className="shrink-0 text-purple-500" />
@@ -958,6 +1029,9 @@ function App() {
             {!isCheckingSession && registrationStep === null && !loginOpen && !authenticatedUser && <button type="button" onClick={() => { setLoginOpen(true); setLoginError(""); }} className="rounded-full border border-purple-200 bg-white px-3 py-2.5 text-xs font-bold text-purple-700 transition hover:bg-purple-50 sm:px-4 sm:text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-purple-300">{authText.login}</button>}
             {!isCheckingSession && registrationStep === null && !authenticatedUser && <button type="button" onClick={() => { setLoginOpen(false); setRegistrationStep(1); setRegistrationComplete(false); setRegistrationError(""); }} className="rounded-full bg-purple-600 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-purple-700 sm:px-4 sm:text-sm">{registrationText.join}</button>}
             {authenticatedUser && <span className="hidden max-w-28 truncate text-xs font-semibold text-slate-500 lg:inline">{authenticatedUser.email}</span>}
+            {authenticatedUser && <button type="button" onClick={() => { if (showProfile) goHome(); else setShowProfile(true); setIsMobileMenuOpen(false); }} className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-bold transition sm:px-4 sm:text-sm ${showProfile ? "bg-purple-700 text-white" : "border border-purple-200 bg-white text-purple-700 hover:bg-purple-50 dark:border-slate-700 dark:bg-slate-900 dark:text-purple-300"}`}>
+              <UserRound size={16} /> {showProfile ? (language === "th" ? "กลับหน้าค้นหา" : "Back to search") : (language === "th" ? "โปรไฟล์" : "Profile")}
+            </button>}
             {authenticatedUser && <button type="button" onClick={logout} className="rounded-full border border-purple-100 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:border-purple-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">{language === "th" ? "ออกจากระบบ" : "Log out"}</button>}
             {authenticatedUser && <button
               type="button"
@@ -973,7 +1047,51 @@ function App() {
             </button>}
           </div>
         </header>
-        {accountNotice && registrationStep === null && !loginOpen && (
+        {showProfile && authenticatedUser && registrationStep === null && !loginOpen && (
+          <section className="relative z-10 mx-auto max-w-7xl px-4 py-8 sm:px-7 lg:px-10" aria-labelledby="profile-title">
+            <div className="overflow-hidden rounded-[2rem] border border-purple-100 bg-white shadow-card dark:border-slate-800 dark:bg-slate-900">
+              <div className="bg-gradient-to-r from-purple-700 to-fuchsia-600 px-6 py-7 text-white sm:px-9">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15"><UserRound size={27} /></div>
+                  <div className="min-w-0"><p className="text-sm font-semibold text-purple-100">{language === "th" ? "โปรไฟล์สมาชิก" : "Member profile"}</p>
+                    <h1 id="profile-title" className="truncate text-2xl font-extrabold">{authenticatedUser.profile?.firstName || authenticatedUser.name || authenticatedUser.email}</h1>
+                    <p className="truncate text-sm text-purple-100">{authenticatedUser.email}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-5 sm:p-8">
+                <div className="mb-6 flex flex-wrap gap-2 border-b border-slate-100 pb-4 dark:border-slate-800">
+                  {[
+                    ["favorites", <Heart size={16} />, language === "th" ? "รายการโปรด" : "Favorites", favorites.length],
+                    ["watchLater", <Bookmark size={16} />, language === "th" ? "ดูภายหลัง" : "Watch later", watchLater.length],
+                    ["history", <History size={16} />, language === "th" ? "ประวัติการค้นหา" : "Search history", searchHistory.length],
+                  ].map(([key, icon, label, count]) => <button key={key} type="button" onClick={() => setProfileTab(key)} className={`inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold transition ${profileTab === key ? "bg-purple-600 text-white" : "bg-purple-50 text-purple-700 hover:bg-purple-100 dark:bg-slate-800 dark:text-slate-200"}`}>
+                    {icon}{label}<span className={`rounded-full px-2 py-0.5 text-xs ${profileTab === key ? "bg-white/20" : "bg-white dark:bg-slate-700"}`}>{count}</span>
+                  </button>)}
+                </div>
+                {profileTab === "history" ? (
+                  <div>
+                    <div className="mb-4 flex items-center justify-between gap-3"><h2 className="text-lg font-bold">{language === "th" ? "ประวัติการค้นหา" : "Search history"}</h2>
+                      {searchHistory.length > 0 && <button type="button" onClick={() => setSearchHistory([])} className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50"><Trash2 size={14} />{language === "th" ? "ล้างประวัติ" : "Clear history"}</button>}
+                    </div>
+                    {searchHistory.length ? <ul className="flex flex-wrap gap-2">{searchHistory.map((term) => <li key={term}><button type="button" onClick={() => { setShowProfile(false); void searchShows(undefined, term); }} className="inline-flex items-center gap-2 rounded-full border border-purple-100 bg-purple-50 px-4 py-2.5 text-sm font-semibold text-purple-800 hover:bg-purple-100 dark:border-slate-700 dark:bg-slate-800 dark:text-purple-200"><Clock3 size={14} />{term}</button></li>)}</ul> : <p className="rounded-2xl bg-purple-50/60 px-5 py-10 text-center text-sm text-slate-500 dark:bg-slate-800">{language === "th" ? "ยังไม่มีประวัติการค้นหา" : "No searches yet."}</p>}
+                  </div>
+                ) : (() => {
+                  const activeList = profileTab === "favorites" ? favorites : watchLater;
+                  const setActiveList = profileTab === "favorites" ? setFavorites : setWatchLater;
+                  return <div>
+                    <h2 className="mb-4 text-lg font-bold">{profileTab === "favorites" ? (language === "th" ? "รายการโปรด" : "Favorites") : (language === "th" ? "บันทึกไว้ดูภายหลัง" : "Saved for later")}</h2>
+                    {activeList.length ? <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">{activeList.map((show) => <div key={`${profileTab}-${show.id}`} className="relative">
+                      <ShowCard show={show} language={language} text={text} onSelect={setSelectedShow} />
+                      <button type="button" onClick={() => toggleShowInList(show, activeList, setActiveList)} aria-label={language === "th" ? "นำรายการออก" : "Remove item"} className="absolute right-2 top-2 rounded-full bg-white/95 p-2 text-rose-600 shadow hover:bg-rose-50"><Trash2 size={16} /></button>
+                    </div>)}</div> : <p className="rounded-2xl bg-purple-50/60 px-5 py-10 text-center text-sm text-slate-500 dark:bg-slate-800">{language === "th" ? "ยังไม่มีรายการ ลองเปิดรายละเอียดซีรีส์แล้วกดบันทึกไว้" : "No saved series yet. Open a series and save it here."}</p>}
+                  </div>;
+                })()}
+              </div>
+            </div>
+          </section>
+        )}
+        {accountNotice && registrationStep === null && !loginOpen && !showProfile && (
           <div role="status" className="mx-auto mt-4 max-w-7xl px-4 sm:px-7 lg:px-10">
             <p className="rounded-2xl border border-purple-200 bg-purple-50 px-4 py-3 text-sm font-semibold text-purple-800 dark:border-purple-900 dark:bg-purple-950/60 dark:text-purple-200">
               {accountNotice}
@@ -1003,7 +1121,7 @@ function App() {
         {loginOpen && !isCheckingSession && (
           <section className="relative z-10 mx-auto max-w-lg px-4 py-10 sm:px-7 sm:py-14">
             <div className="overflow-hidden rounded-[2rem] border border-purple-100 bg-white shadow-card dark:border-slate-800 dark:bg-slate-900">
-              <div className="bg-gradient-to-br from-purple-600 to-fuchsia-600 px-6 py-8 text-white sm:px-9"><span className="text-sm font-semibold text-purple-100">Series Finder</span><h1 className="mt-2 text-2xl font-extrabold sm:text-3xl">{authText.loginTitle}</h1><p className="mt-2 text-sm text-purple-100">{authText.loginHint}</p></div>
+              <div className="bg-gradient-to-br from-purple-600 to-fuchsia-600 px-6 py-8 text-white sm:px-9"><span className="text-sm font-black tracking-[0.12em] text-purple-100">MOONFLIX</span><h1 className="mt-2 text-2xl font-extrabold sm:text-3xl">{authText.loginTitle}</h1><p className="mt-2 text-sm text-purple-100">{authText.loginHint}</p></div>
               <form onSubmit={submitLogin} className="grid gap-5 p-6 sm:p-9">
                 <label className="grid gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">{authText.username}<input required type="email" autoComplete="email" value={login.email} onChange={(event) => { setLogin((current) => ({ ...current, email: event.target.value })); setLoginError(""); }} className="rounded-xl border border-purple-100 bg-white px-4 py-3 font-medium outline-none focus:border-purple-400 dark:border-slate-700 dark:bg-slate-950" /></label>
                 <label className="grid gap-2 text-sm font-bold text-slate-700 dark:text-slate-200">{authText.passwordLabel}<input required type="password" autoComplete="current-password" value={login.password} onChange={(event) => { setLogin((current) => ({ ...current, password: event.target.value })); setLoginError(""); }} className="rounded-xl border border-purple-100 bg-white px-4 py-3 font-medium outline-none focus:border-purple-400 dark:border-slate-700 dark:bg-slate-950" /></label>
@@ -1078,7 +1196,7 @@ function App() {
                     <Clapperboard size={21} />
                   </span>
                   <span className="text-lg font-extrabold tracking-tight text-ink dark:text-slate-100">
-                    series<span className="text-purple-600">finder</span>
+                    <span className="font-black tracking-[0.08em]">MOON<span className="text-purple-600">FLIX</span></span>
                   </span>
                 </a>
                 <button
@@ -1165,7 +1283,7 @@ function App() {
             </aside>
           </div>
         )}
-        <div hidden={registrationStep !== null || loginOpen} className="relative z-10 mx-auto min-h-screen max-w-7xl px-4 pb-16 sm:px-7 lg:px-10">
+        <div hidden={registrationStep !== null || loginOpen || showProfile} className="relative z-10 mx-auto min-h-screen max-w-7xl px-4 pb-16 sm:px-7 lg:px-10">
 
         <section aria-live="polite" aria-busy={status === "loading"}>
           {status === "idle" && authenticatedUser && (
@@ -1323,6 +1441,10 @@ function App() {
           language={language}
           text={text}
           isMember={Boolean(authenticatedUser)}
+          isFavorite={favorites.some((item) => String(item.id) === String(selectedShow.id))}
+          isSaved={watchLater.some((item) => String(item.id) === String(selectedShow.id))}
+          onToggleFavorite={(show) => toggleShowInList(show, favorites, setFavorites)}
+          onToggleSaved={(show) => toggleShowInList(show, watchLater, setWatchLater)}
         />
       )}
     </main>

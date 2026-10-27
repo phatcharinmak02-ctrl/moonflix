@@ -1,6 +1,6 @@
-# Series Finder
+# MOONFLIX
 
-Responsive React and Tailwind CSS app for searching TV series with the TVmaze API.
+Responsive React and Tailwind CSS app for discovering TV series with the TVmaze API.
 Member accounts use the React Course API at `https://react-api.dev2life.workers.dev/api/v1`. The Express backend forwards authenticated catalog requests to TVmaze.
 Search suggestions are fetched from TVmaze as you type, and the latest eight
 searches are saved in the browser's local storage. The full-width responsive
